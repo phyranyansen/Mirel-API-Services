@@ -25,11 +25,11 @@ Lalu di `composer.json` project Anda:
 
 ```json
 {
-    "autoload": {
-        "psr-4": {
-            "Mirel\\TowerSdk\\": "path/to/Mirel-API-Services/src/"
-        }
+  "autoload": {
+    "psr-4": {
+      "Mirel\\TowerSdk\\": "path/to/Mirel-API-Services/src/"
     }
+  }
 }
 ```
 
@@ -100,18 +100,26 @@ foreach ($result['data']['items'] as $item) {
 
 ```json
 {
-    "status": true,
-    "mode": "sandbox",
-    "data": {
-        "no_faktur": "INV-20260710-001",
-        "tgl_pembelian": "2026-07-10",
-        "nama_supplier_mentah": "UD Sumber Makmur",
-        "total_nominal": 1575000,
-        "items": [
-            { "nama_barang_mentah": "Beras Ramos 5kg", "qty": 10, "harga_beli": 72500 },
-            { "nama_barang_mentah": "Minyak Goreng 2L", "qty": 24, "harga_beli": 18500 }
-        ]
-    }
+  "status": true,
+  "mode": "sandbox",
+  "data": {
+    "no_faktur": "INV-20260710-001",
+    "tgl_pembelian": "2026-07-10",
+    "nama_supplier_mentah": "UD Sumber Makmur",
+    "total_nominal": 1575000,
+    "items": [
+      {
+        "nama_barang_mentah": "Beras Ramos 5kg",
+        "qty": 10,
+        "harga_beli": 72500
+      },
+      {
+        "nama_barang_mentah": "Minyak Goreng 2L",
+        "qty": 24,
+        "harga_beli": 18500
+      }
+    ]
+  }
 }
 ```
 
@@ -173,27 +181,27 @@ echo "⏳ Stok habis dalam: {$result['data']['days_to_stockout']} hari\n";
 
 ## 📋 Daftar Lengkap Method
 
-| Method                    | Deskripsi                                      | Paket       |
-| ------------------------- | ---------------------------------------------- | ----------- |
-| `analyzeFaktur()`         | 🔍 Scan & parse faktur dari gambar             | Standard    |
-| `businessInit()`          | 📦 Inisialisasi data bisnis baru               | Standard    |
-| `guide()`                 | 💬 AI Assistant (gratis, tanpa potong token)   | Standard    |
-| `validateAiUsage()`       | 📊 Cek sisa saldo token                        | Standard    |
-| `topupConfirm()`          | 💰 Konfirmasi hasil top-up                     | Standard    |
-| `processJournal()`        | 📒 Buat jurnal akuntansi otomatis              | Pro         |
-| `accountingReconcile()`   | 🏦 Rekonsiliasi bank vs invoice                | Pro         |
-| `matchTransaction()`      | 🔗 Cocokkan transaksi dengan invoice           | Pro         |
-| `mapCoa()`                | 🗺️ Mapping Chart of Accounts                  | Pro         |
-| `detectAnomaly()`         | 🚨 Deteksi transaksi mencurigakan              | Pro         |
-| `taxCalculate()`          | 🧮 Hitung pajak otomatis                       | Pro         |
-| `nlQuery()`               | 💬 Query data pakai bahasa manusia             | Pro         |
-| `forecastDemand()`        | 📈 Prediksi permintaan stok                    | Enterprise  |
-| `financeInsights()`       | 📋 Wawasan keuangan pintar                     | Enterprise  |
-| `parseDocument()`         | 📄 OCR / parse dokumen                         | Enterprise  |
-| `cashflowForecast()`      | 💵 Proyeksi arus kas                           | Enterprise  |
-| `sentimentAnalyze()`      | 😊 Analisis sentimen pelanggan                 | Enterprise  |
-| `smartProcurement()`      | 🛒 Rekomendasi pembelian cerdas               | Enterprise  |
-| `processJournalBatch()`   | 🔁 Proses banyak jurnal sekaligus (batch)      | Pro         |
+| Method                  | Deskripsi                                    | Paket      |
+| ----------------------- | -------------------------------------------- | ---------- |
+| `analyzeFaktur()`       | 🔍 Scan & parse faktur dari gambar           | Standard   |
+| `businessInit()`        | 📦 Inisialisasi data bisnis baru             | Standard   |
+| `guide()`               | 💬 AI Assistant (gratis, tanpa potong token) | Standard   |
+| `validateAiUsage()`     | 📊 Cek sisa saldo token                      | Standard   |
+| `topupConfirm()`        | 💰 Konfirmasi hasil top-up                   | Standard   |
+| `processJournal()`      | 📒 Buat jurnal akuntansi otomatis            | Pro        |
+| `accountingReconcile()` | 🏦 Rekonsiliasi bank vs invoice              | Pro        |
+| `matchTransaction()`    | 🔗 Cocokkan transaksi dengan invoice         | Pro        |
+| `mapCoa()`              | 🗺️ Mapping Chart of Accounts                 | Pro        |
+| `detectAnomaly()`       | 🚨 Deteksi transaksi mencurigakan            | Pro        |
+| `taxCalculate()`        | 🧮 Hitung pajak otomatis                     | Pro        |
+| `nlQuery()`             | 💬 Query data pakai bahasa manusia           | Pro        |
+| `forecastDemand()`      | 📈 Prediksi permintaan stok                  | Enterprise |
+| `financeInsights()`     | 📋 Wawasan keuangan pintar                   | Enterprise |
+| `parseDocument()`       | 📄 OCR / parse dokumen                       | Enterprise |
+| `cashflowForecast()`    | 💵 Proyeksi arus kas                         | Enterprise |
+| `sentimentAnalyze()`    | 😊 Analisis sentimen pelanggan               | Enterprise |
+| `smartProcurement()`    | 🛒 Rekomendasi pembelian cerdas              | Enterprise |
+| `processJournalBatch()` | 🔁 Proses banyak jurnal sekaligus (batch)    | Pro        |
 
 ---
 
@@ -203,8 +211,8 @@ echo "⏳ Stok habis dalam: {$result['data']['days_to_stockout']} hari\n";
 
 SDK menentukan base URL secara dinamis:
 
-| Mode      | Endpoint                                |
-| --------- | --------------------------------------- |
+| Mode        | Endpoint                                 |
+| ----------- | ---------------------------------------- |
 | **Sandbox** | `https://mirel.id/api/v1/sandbox/{path}` |
 | **Live**    | `https://mirel.id/api/v1/live/{path}`    |
 
@@ -239,12 +247,12 @@ try {
 
 ### Kode Error
 
-| Kode    | Artinya                | Solusi                          |
-| ------- | ---------------------- | ------------------------------- |
-| **401** | License key salah      | Cek key di dashboard            |
-| **402** | Token habis            | Top-up atau tunggu reset bulan  |
-| **403** | Paket kurang memadai   | Upgrade paket                   |
-| **429** | Terlalu banyak request | SDK otomatis retry              |
+| Kode    | Artinya                | Solusi                         |
+| ------- | ---------------------- | ------------------------------ |
+| **401** | License key salah      | Cek key di dashboard           |
+| **402** | Token habis            | Top-up atau tunggu reset bulan |
+| **403** | Paket kurang memadai   | Upgrade paket                  |
+| **429** | Terlalu banyak request | SDK otomatis retry             |
 
 ---
 
@@ -269,9 +277,9 @@ Ciri response sandbox:
 
 ```json
 {
-    "status": true,
-    "mode": "sandbox",
-    "message": "Sandbox mode (mock data). Tidak memotong saldo."
+  "status": true,
+  "mode": "sandbox",
+  "message": "Sandbox mode (mock data). Tidak memotong saldo."
 }
 ```
 
