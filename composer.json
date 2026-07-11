@@ -1,0 +1,39 @@
+{
+    "name": "mirel/tower-sdk",
+    "description": "SDK Resmi PHP untuk integrasi Otak AI Mirel Tower — OCR Faktur, Deteksi Anomali, Proyeksi Arus Kas, dan 15+ layanan AI lainnya",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Mirel\\TowerSdk\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=7.4",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*"
+    },
+    "authors": [
+        {
+            "name": "Mirel Dev Team",
+            "homepage": "https://mirel.id"
+        }
+    ],
+    "support": {
+        "docs": "https://mirel.id/docs/api-public-guide",
+        "source": "https://github.com/phyranyansen/mirel-licenses"
+    },
+    "keywords": [
+        "mirel",
+        "tower",
+        "ai",
+        "sdk",
+        "ocr",
+        "finance",
+        "accounting",
+        "invoice-scanning",
+        "anomaly-detection",
+        "cashflow-forecast"
+    ]
+}
