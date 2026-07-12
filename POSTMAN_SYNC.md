@@ -60,7 +60,7 @@ Buat file **`.github/workflows/postman-sync.yml`** di root repositori dengan isi
 Workflow ini:
 
 1. Ter-trigger hanya saat `openapi.yaml` di-commit ke `main`.
-2. Mengonversi OpenAPI → Collection JSON via `openapi-to-postman-converter`.
+2. Mengonversi OpenAPI → Collection JSON via `openapi2postman-unofficial` (binary `openapi2postmanv2`).
 3. Meng-upload (PUT) hasilnya ke Postman, memperbarui collection yang sudah ada.
 
 ```yaml
@@ -86,7 +86,7 @@ jobs:
           node-version: "20"
 
       - name: Install OpenAPI → Postman converter
-        run: npm install -g openapi-to-postman-converter
+        run: npm install -g openapi2postman-unofficial
 
       - name: Convert OpenAPI spec to Postman Collection
         run: |
