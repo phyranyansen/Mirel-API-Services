@@ -26,6 +26,14 @@ security:
 tags:
   - name: "AI Services"
     description: "Endpoint AI otonom untuk Mirel ERP POS (analisis faktur, deteksi anomali, forecast kas)."
+  - name: "Standard"
+    description: "Paket Standard — layanan dasar (OCR faktur, cek saldo, AI assistant, init bisnis, top-up)."
+  - name: "Pro"
+    description: "Paket Pro — rekonsiliasi, pencocokan, mapping COA, deteksi anomali, pajak, NL-query, jurnal akuntansi."
+  - name: "Enterprise"
+    description: "Paket Enterprise — forecast demand, wawasan keuangan, OCR dokumen, forecast kas, sentimen, procurement."
+  - name: "Accounting"
+    description: "Layanan akuntansi terpisah (pembuatan & pembersihan jurnal) di bawah namespace /accounting."
 
 paths:
   /ai/analyze-faktur:
@@ -243,6 +251,1131 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "422":
           $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/validate-ai-usage:
+    post:
+      tags:
+        - "Standard"
+      operationId: "validateAiUsage"
+      summary: "Cek Sisa Saldo Token AI"
+      description: >
+        Mengembalikan sisa, total, dan pemakaian token AI untuk lisensi aktif.
+        Endpoint ini tidak memotong saldo (gratis).
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {}
+            example: {}
+      responses:
+        "200":
+          description: "OK — Saldo token berhasil diambil."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Saldo token tersedia."
+                data:
+                  remaining: 482
+                  used: 118
+                  total: 600
+                  mode: "live"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/topup-confirm:
+    post:
+      tags:
+        - "Standard"
+      operationId: "topupConfirm"
+      summary: "Konfirmasi Top-Up Token"
+      description: >
+        Menambah saldo token AI setelah pembayaran. Di lingkungan production,
+        field 'payment_token' wajib diisi; simulasi langsung tidak diizinkan.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payment_token:
+                  type: string
+                  description: "Token pembayaran resmi (wajib di production)."
+                  example: "pay_3kf9aZxQ"
+            example:
+              payment_token: "pay_3kf9aZxQ"
+      responses:
+        "200":
+          description: "OK — Top-up berhasil."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Top-up Berhasil"
+                data:
+                  new_balance: 780
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/guide:
+    post:
+      tags:
+        - "Standard"
+      operationId: "guide"
+      summary: "AI Assistant (Tanya Jawab)"
+      description: >
+        AI Assistant gratis untuk bertanya cara pakai fitur Mirel, troubleshooting,
+        atau rekomendasi modul. Tidak memotong token.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  example: "Bagaimana cara menggunakan detect-anomaly?"
+            example:
+              message: "Bagaimana cara menggunakan detect-anomaly?"
+      responses:
+        "200":
+          description: "OK — Jawaban AI Assistant."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "OK"
+                data:
+                  reply: "Gunakan detect-anomaly dengan mengirim array transaksi harian. AI akan mendeteksi pola mencurigakan seperti void setelah bayar."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/business-init:
+    post:
+      tags:
+        - "Standard"
+      operationId: "businessInit"
+      summary: "Inisialisasi Data Bisnis Baru"
+      description: >
+        Mendaftarkan/menyiapkan profil bisnis (nama, alamat, NPWP, tipe) agar
+        layanan AI dapat memberikan hasil yang kontekstual.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Toko Maju Jaya"
+                address:
+                  type: string
+                  example: "Jl. Sudirman No. 45, Jakarta"
+                npwp:
+                  type: string
+                  example: "01.234.567.8-901.000"
+                business_type:
+                  type: string
+                  example: "retail"
+                owner_name:
+                  type: string
+                  example: "Budi Santoso"
+            example:
+              name: "Toko Maju Jaya"
+              address: "Jl. Sudirman No. 45, Jakarta"
+              npwp: "01.234.567.8-901.000"
+              business_type: "retail"
+              owner_name: "Budi Santoso"
+      responses:
+        "200":
+          description: "OK — Inisialisasi bisnis berhasil."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Bisnis berhasil diinisialisasi."
+                data:
+                  business_id: "BIZ-000871"
+                  created_at: "2026-07-12T09:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/accounting-reconcile:
+    post:
+      tags:
+        - "Pro"
+      operationId: "accountingReconcile"
+      summary: "Rekonsiliasi Bank vs Invoice"
+      description: >
+        Mencocokkan mutasi bank dengan invoice yang tercatat dan mengembalikan
+        selisih serta item yang tidak ter-reconcile.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bank_statements
+                - invoices
+              properties:
+                bank_statements:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      date:
+                        type: string
+                        format: date
+                        example: "2026-07-01"
+                      description:
+                        type: string
+                        example: "TRANSFER DARI PT SUPPLIER"
+                      amount:
+                        type: number
+                        format: float
+                        example: 154500.00
+                      type:
+                        type: string
+                        enum: ["debit", "credit"]
+                        example: "credit"
+                invoices:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      invoice_no:
+                        type: string
+                        example: "INV/2026/000123"
+                      date:
+                        type: string
+                        format: date
+                        example: "2026-07-01"
+                      amount:
+                        type: number
+                        format: float
+                        example: 154500.00
+                      status:
+                        type: string
+                        example: "unpaid"
+            example:
+              bank_statements:
+                - date: "2026-07-01"
+                  description: "TRANSFER DARI PT SUPPLIER"
+                  amount: 154500.00
+                  type: "credit"
+              invoices:
+                - invoice_no: "INV/2026/000123"
+                  date: "2026-07-01"
+                  amount: 154500.00
+                  status: "unpaid"
+      responses:
+        "200":
+          description: "OK — Rekonsiliasi selesai."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Rekonsiliasi selesai."
+                data:
+                  matched:
+                    - bank_ref: "TRANSFER DARI PT SUPPLIER"
+                      invoice_no: "INV/2026/000123"
+                      amount: 154500.00
+                  unmatched_bank: []
+                  unmatched_invoice: []
+                  summary:
+                    total_matched: 1
+                    total_difference: 0.00
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/match-transaction:
+    post:
+      tags:
+        - "Pro"
+      operationId: "matchTransaction"
+      summary: "Pencocokan Transaksi dengan Invoice"
+      description: >
+        Memadankan baris transaksi kas dengan invoice terkait dan mengembalikan
+        tingkat kepercayaan kecocokan.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - transactions
+              properties:
+                transactions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      transaction_id:
+                        type: string
+                        example: "TXN-2026-009871"
+                      amount:
+                        type: number
+                        format: float
+                        example: 154500.00
+                      date:
+                        type: string
+                        format: date
+                        example: "2026-07-01"
+                reference_invoices:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      invoice_no:
+                        type: string
+                        example: "INV/2026/000123"
+                      amount:
+                        type: number
+                        format: float
+                        example: 154500.00
+            example:
+              transactions:
+                - transaction_id: "TXN-2026-009871"
+                  amount: 154500.00
+                  date: "2026-07-01"
+              reference_invoices:
+                - invoice_no: "INV/2026/000123"
+                  amount: 154500.00
+      responses:
+        "200":
+          description: "OK — Pencocokan selesai."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Pencocokan selesai."
+                data:
+                  matches:
+                    - transaction_id: "TXN-2026-009871"
+                      invoice_no: "INV/2026/000123"
+                      confidence: 0.98
+                  unmatched: []
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/forecast-demand:
+    post:
+      tags:
+        - "Enterprise"
+      operationId: "forecastDemand"
+      summary: "Prediksi Permintaan Stok (Forecast Demand)"
+      description: >
+        Memprediksi permintaan produk, safety stock, reorder point, dan estimasi
+        kehabisan stok berdasarkan historis penjualan.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - product_id
+                - sales_history
+              properties:
+                product_id:
+                  type: string
+                  example: "BR-5KG"
+                product_name:
+                  type: string
+                  example: "Beras Premium 5kg"
+                sales_history:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      date:
+                        type: string
+                        format: date
+                        example: "2026-06-01"
+                      qty:
+                        type: number
+                        format: float
+                        example: 120
+                lead_time_days:
+                  type: integer
+                  example: 3
+                current_stock:
+                  type: integer
+                  example: 80
+            example:
+              product_id: "BR-5KG"
+              product_name: "Beras Premium 5kg"
+              sales_history:
+                - date: "2026-06-01"
+                  qty: 120
+                - date: "2026-06-08"
+                  qty: 135
+              lead_time_days: 3
+              current_stock: 80
+      responses:
+        "200":
+          description: "OK — Forecast permintaan dihasilkan."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Forecast permintaan dihasilkan."
+                data:
+                  forecast:
+                    - month: "2026-08"
+                      predicted_qty: 540
+                    - month: "2026-09"
+                      predicted_qty: 560
+                  safety_stock: 60
+                  reorder_point: 140
+                  stockout_risk: "low"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/finance-insights:
+    post:
+      tags:
+        - "Enterprise"
+      operationId: "financeInsights"
+      summary: "Wawasan Keuangan Pintar"
+      description: >
+        Menganalisis data keuangan dan mengembalikan wawasan serta rekomendasi
+        bisnis (profitabilitas, burn rate, efisiensi).
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                period:
+                  type: string
+                  example: "2026-Q2"
+                revenue:
+                  type: number
+                  format: float
+                  example: 1250000000
+                cogs:
+                  type: number
+                  format: float
+                  example: 820000000
+                expenses:
+                  type: number
+                  format: float
+                  example: 210000000
+                currency:
+                  type: string
+                  example: "IDR"
+            example:
+              period: "2026-Q2"
+              revenue: 1250000000
+              cogs: 820000000
+              expenses: 210000000
+              currency: "IDR"
+      responses:
+        "200":
+          description: "OK — Wawasan keuangan dihasilkan."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Wawasan keuangan dihasilkan."
+                data:
+                  insights:
+                    - metric: "gross_margin"
+                      value: 34.4
+                      note: "Margin kotor di atas rata-rata industri retail."
+                  recommendations:
+                    - "Tinjau harga beli BR-5KG untuk naikkan margin 2%."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/map-coa:
+    post:
+      tags:
+        - "Pro"
+      operationId: "mapCoa"
+      summary: "Mapping Chart of Accounts (COA)"
+      description: >
+        Memetakan deskripsi transaksi ke kode akun (COA) yang tepat secara otomatis.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - transactions
+              properties:
+                transactions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                        example: "Pembelian barang dagangan"
+                      amount:
+                        type: number
+                        format: float
+                        example: 154500.00
+            example:
+              transactions:
+                - description: "Pembelian barang dagangan"
+                  amount: 154500.00
+      responses:
+        "200":
+          description: "OK — Mapping COA selesai."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Mapping COA selesai."
+                data:
+                  mapping:
+                    - description: "Pembelian barang dagangan"
+                      account_code: "5010"
+                      account_name: "Pembelian"
+                      confidence: 0.95
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/parse-document:
+    post:
+      tags:
+        - "Enterprise"
+      operationId: "parseDocument"
+      summary: "OCR / Parse Dokumen (AP, AR, Kontrak)"
+      description: >
+        Mengekstrak struktur dari dokumen AP/AR atau kontrak (PDF/gambar) menjadi
+        JSON terstruktur.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - document_base64
+              properties:
+                document_base64:
+                  type: string
+                  description: "Dokumen di-encode base64 (PDF/gambar)."
+                  example: "data:application/pdf;base64,JVBERi0xLjQKJ..."
+                document_type:
+                  type: string
+                  enum: ["ap", "ar", "contract", "auto"]
+                  example: "ap"
+            example:
+              document_base64: "data:application/pdf;base64,JVBERi0xLjQKJ..."
+              document_type: "ap"
+      responses:
+        "200":
+          description: "OK — Dokumen berhasil di-parse."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Dokumen berhasil di-parse."
+                data:
+                  doc_type: "ap"
+                  fields:
+                    vendor: "PT Supplier Makmur"
+                    invoice_no: "INV/2026/000123"
+                    due_date: "2026-08-01"
+                    total: 154500.00
+                  line_items:
+                    - description: "Beras Premium 5kg"
+                      qty: 2
+                      price: 62500.00
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/tax-calculate:
+    post:
+      tags:
+        - "Pro"
+      operationId: "taxCalculate"
+      summary: "Hitung Pajak (Tax Calculate)"
+      description: >
+        Menghitung PPN/PPH dan total pajak untuk sebuah transaksi atau faktur.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+              properties:
+                amount:
+                  type: number
+                  format: float
+                  example: 154500.00
+                tax_type:
+                  type: string
+                  enum: ["ppn", "pph21", "pph23", "auto"]
+                  example: "ppn"
+                is_include_ppn:
+                  type: boolean
+                  example: false
+                currency:
+                  type: string
+                  example: "IDR"
+            example:
+              amount: 154500.00
+              tax_type: "ppn"
+              is_include_ppn: false
+              currency: "IDR"
+      responses:
+        "200":
+          description: "OK — Perhitungan pajak selesai."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Perhitungan pajak selesai."
+                data:
+                  base: 154500.00
+                  ppn: 16995.00
+                  pph: 0.00
+                  total_tax: 16995.00
+                  net: 171495.00
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/sentiment-analyze:
+    post:
+      tags:
+        - "Enterprise"
+      operationId: "sentimentAnalyze"
+      summary: "Analisis Sentimen Pelanggan"
+      description: >
+        Menganalisis sentimen ulasan/feedback pelanggan dan mengembalikan skor
+        serta breakdown per item.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - texts
+              properties:
+                texts:
+                  type: array
+                  items:
+                    type: string
+                    example: "Pelayanannya ramah dan cepat!"
+                language:
+                  type: string
+                  example: "id"
+            example:
+              texts:
+                - "Pelayanannya ramah dan cepat!"
+                - "Barangnya sering kosong, kecewa."
+              language: "id"
+      responses:
+        "200":
+          description: "OK — Analisis sentimen selesai."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Analisis sentimen selesai."
+                data:
+                  overall_sentiment: "positive"
+                  score: 0.62
+                  per_item:
+                    - text: "Pelayanannya ramah dan cepat!"
+                      sentiment: "positive"
+                      score: 0.91
+                    - text: "Barangnya sering kosong, kecewa."
+                      sentiment: "negative"
+                      score: 0.20
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/smart-procurement:
+    post:
+      tags:
+        - "Enterprise"
+      operationId: "smartProcurement"
+      summary: "Rekomendasi Pembelian Cerdas (Smart Procurement)"
+      description: >
+        Menghitung rekomendasi kuantitas pembelian berdasarkan histori penjualan,
+        stok, lead time, dan budget.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sales_history
+                - current_stock
+              properties:
+                sales_history:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      sku:
+                        type: string
+                        example: "BR-5KG"
+                      avg_monthly_qty:
+                        type: number
+                        format: float
+                        example: 520
+                current_stock:
+                  type: object
+                  additionalProperties:
+                    type: number
+                  example:
+                    BR-5KG: 80
+                lead_time_days:
+                  type: integer
+                  example: 3
+                budget:
+                  type: number
+                  format: float
+                  example: 5000000
+            example:
+              sales_history:
+                - sku: "BR-5KG"
+                  avg_monthly_qty: 520
+              current_stock:
+                BR-5KG: 80
+              lead_time_days: 3
+              budget: 5000000
+      responses:
+        "200":
+          description: "OK — Rekomendasi pembelian dihasilkan."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Rekomendasi pembelian dihasilkan."
+                data:
+                  recommendations:
+                    - sku: "BR-5KG"
+                      qty_to_order: 600
+                      estimated_cost: 3750000.00
+                      reason: "Stok di bawah reorder point untuk 3 hari lead time."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/nl-query:
+    post:
+      tags:
+        - "Pro"
+      operationId: "nlQuery"
+      summary: "Query Data dengan Bahasa Natural (NL Query)"
+      description: >
+        Menjawab pertanyaan bisnis dalam bahasa sehari-hari berdasarkan data
+        Mirel ERP POS (penjualan, stok, kas, dll).
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - question
+              properties:
+                question:
+                  type: string
+                  example: "Berapa total penjualan bulan Juni 2026?"
+            example:
+              question: "Berapa total penjualan bulan Juni 2026?"
+      responses:
+        "200":
+          description: "OK — Jawaban dihasilkan."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Jawaban dihasilkan."
+                data:
+                  answer: "Total penjualan Juni 2026 adalah Rp 1.250.000.000."
+                  sql: "SELECT SUM(total) FROM sales WHERE MONTH(date)=6 AND YEAR(date)=2026"
+                  chart:
+                    type: "bar"
+                    series: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"]
+                    values: [980, 1020, 1100, 1050, 1180, 1250]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /accounting/process-journal:
+    post:
+      tags:
+        - "Accounting"
+        - "Pro"
+      operationId: "processJournal"
+      summary: "Buat Jurnal Akuntansi Otomatis"
+      description: >
+        Menghasilkan entri jurnal akuntansi dari daftar item (debit/kredit).
+        Field 'items' wajib dan total debit harus sama dengan total kredit.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - items
+              properties:
+                memo:
+                  type: string
+                  example: "Jurnal pembelian barang dagangan"
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - account_code
+                      - account_name
+                    properties:
+                      account_code:
+                        type: string
+                        example: "5010"
+                      account_name:
+                        type: string
+                        example: "Pembelian"
+                      debit:
+                        type: number
+                        format: float
+                        example: 154500.00
+                      credit:
+                        type: number
+                        format: float
+                        example: 0.00
+                      description:
+                        type: string
+                        example: "Pembelian BR-5KG"
+                      date:
+                        type: string
+                        format: date
+                        example: "2026-07-01"
+            example:
+              memo: "Jurnal pembelian barang dagangan"
+              items:
+                - account_code: "5010"
+                  account_name: "Pembelian"
+                  debit: 154500.00
+                  credit: 0.00
+                  description: "Pembelian BR-5KG"
+                  date: "2026-07-01"
+                - account_code: "1110"
+                  account_name: "Kas"
+                  debit: 0.00
+                  credit: 154500.00
+                  description: "Pembayaran tunai"
+                  date: "2026-07-01"
+      responses:
+        "200":
+          description: "OK — Jurnal berhasil dibuat."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Jurnal berhasil dibuat."
+                data:
+                  journal_id: "JRN-2026-004512"
+                  entry_count: 2
+                  total_debit: 154500.00
+                  total_credit: 154500.00
+                  balanced: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /accounting/cleanup-duplicates:
+    post:
+      tags:
+        - "Accounting"
+        - "Pro"
+      operationId: "cleanupDuplicates"
+      summary: "Hapus Duplikat Jurnal"
+      description: >
+        Mendeteksi dan menghapus entri jurnal duplikat dalam rentang tanggal
+        berdasarkan ambang batas (threshold) kemiripan.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date_from:
+                  type: string
+                  format: date
+                  example: "2026-07-01"
+                date_to:
+                  type: string
+                  format: date
+                  example: "2026-07-31"
+                threshold:
+                  type: number
+                  format: float
+                  example: 0.95
+            example:
+              date_from: "2026-07-01"
+              date_to: "2026-07-31"
+              threshold: 0.95
+      responses:
+        "200":
+          description: "OK — Pembersihan duplikat selesai."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardEnvelope"
+              example:
+                status: "success"
+                code: 200
+                message: "Pembersihan duplikat selesai."
+                data:
+                  duplicates_found: 3
+                  removed: 3
+                  kept: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          $ref: "#/components/responses/PaymentRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
         "500":
           $ref: "#/components/responses/ServerError"
 
@@ -591,6 +1724,31 @@ components:
           format: uuid
           example: "b6e8c1a2-1c2d-4f3a-9b0e-1234567890ab"
 
+    StandardEnvelope:
+      type: object
+      required:
+        - status
+        - code
+        - message
+      properties:
+        status:
+          type: string
+          example: "success"
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "OK"
+        data:
+          type: object
+          description: "Payload hasil AI; struktur bervariasi per endpoint."
+          additionalProperties: true
+        request_id:
+          type: string
+          format: uuid
+          example: "b6e8c1a2-1c2d-4f3a-9b0e-1234567890ab"
+
   responses:
     BadRequest:
       description: "Bad Request — Payload tidak valid atau field wajib kosong."
@@ -636,3 +1794,37 @@ components:
             code: 500
             message: "Layanan AI sedang tidak tersedia, silakan coba beberapa saat lagi."
             request_id: "d3e4f5a6-3333-4444-5555-666677778888"
+    PaymentRequired:
+      description: "Payment Required — Kuota token AI habis, perlu top-up."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: "error"
+            code: 402
+            message: "Kuota AI Scan Habis. Silakan top-up atau tunggu reset bulanan."
+            request_id: "e1f2a3b4-4444-5555-6666-777788889999"
+    Forbidden:
+      description: "Forbidden — Paket lisensi tidak mencakup layanan ini."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: "error"
+            code: 403
+            message: "Paket Anda tidak mencakup layanan ini. Upgrade ke Pro/Enterprise."
+            request_id: "f2a3b4c5-5555-6666-7777-888899990000"
+    TooManyRequests:
+      description: "Too Many Requests — Melewati batas rate limit (429)."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: "error"
+            code: 429
+            message: "Terlalu banyak permintaan. Coba lagi setelah beberapa detik."
+            request_id: "a3b4c5d6-6666-7777-8888-999900001111"
+            retry_after: 30
