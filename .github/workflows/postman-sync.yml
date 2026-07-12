@@ -1,0 +1,51 @@
+name: Postman Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "openapi.yaml"
+  workflow_dispatch:
+
+jobs:
+  sync-to-postman:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install OpenAPI → Postman converter
+        run: npm install -g openapi-to-postman-converter
+
+      - name: Convert OpenAPI spec to Postman Collection
+        run: |
+          openapi2postmanv2 \
+            --spec openapi.yaml \
+            --output collection.generated.json \
+            --pretty \
+            --options-configuration '{"requestParametersResolution":"Example","schemaFakingDepth":2,"indentCharacter":"  ","folderStrategy":"tags"}'
+
+      - name: Upload collection to Postman (update existing)
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+          POSTMAN_COLLECTION_UID: ${{ secrets.POSTMAN_COLLECTION_UID }}
+        run: |
+          # Postman mengharapkan payload dibungkus dengan key "collection"
+          jq '{ collection: . }' collection.generated.json > collection.payload.json
+
+          curl --fail --silent --show-error \
+            --request PUT \
+            --url "https://api.getpostman.com/collections/${POSTMAN_COLLECTION_UID}?apikey=${POSTMAN_API_KEY}" \
+            --header "Content-Type: application/json" \
+            --data @collection.payload.json
+
+          echo "✅ Postman collection 'Mirel API Services' berhasil diperbarui dengan semua endpoint."
+
+      - name: Cleanup generated artifacts
+        if: always()
+        run: rm -f collection.generated.json collection.payload.json
