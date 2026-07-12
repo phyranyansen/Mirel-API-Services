@@ -43,23 +43,23 @@ paths:
       operationId: "analyzeFaktur"
       summary: "Analisis Struk / Faktur"
       description: >
-        Menerima gambar struk atau nota dalam bentuk string base64 dan mengubahnya
-        menjadi array JSON terstruktur yang bersih (merchant, nomor invoice, tanggal,
-        daftar item, dan total). Cocok untuk otomasi input pembelian di Mirel ERP POS.
+        Menerima upload file gambar struk atau nota secara langsung
+        (multipart/form-data, field `image`) dan mengubahnya menjadi array JSON
+        terstruktur yang bersih (no faktur, supplier, item, dan total). Cocok untuk
+        otomasi input pembelian di Mirel ERP POS. Tipe file yang didukung: PNG, JPG, PDF.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
-        description: "Payload gambar faktur yang di-encode base64."
+        description: "Upload file gambar faktur langsung (multipart/form-data)."
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: "#/components/schemas/AnalyzeFakturRequest"
             example:
-              image_base64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
-              filename: "struk_toko_001.png"
-              mime_type: "image/png"
-              timezone: "Asia/Jakarta"
+              image:
+                filename: "struk_toko_001.png"
+                mime_type: "image/png"
       responses:
         "200":
           description: "OK — Faktur berhasil diurai menjadi JSON terstruktur."
@@ -68,29 +68,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/AnalyzeFakturResponse"
               example:
-                status: "success"
-                code: 200
-                message: "Faktur berhasil dianalisis."
+                status: 200
+                message: "Analisa Berhasil"
+                billing_mode: "token"
+                balance: 478
+                units_charged: 1
                 data:
-                  merchant_name: "Toko Maju Jaya"
-                  merchant_address: "Jl. Jend. Sudirman No. 45, Jakarta Pusat"
-                  invoice_number: "INV/2026/000123"
-                  date: "2026-07-12"
-                  currency: "IDR"
-                  total_amount: 154500.00
+                  no_faktur: "INV/2026/000123"
+                  tgl_pembelian: "2026-07-12"
+                  nama_supplier_mentah: "Toko Maju Jaya"
+                  total_nominal: 154500.00
                   items:
-                    - name: "Beras Premium 5kg"
+                    - nama_barang_mentah: "Beras Premium 5kg"
                       qty: 2
-                      unit_price: 62500.00
-                      line_total: 125000.00
-                    - name: "Minyak Goreng 2L"
+                      satuan_mentah: "PCS"
+                      harga_beli: 62500.00
+                    - nama_barang_mentah: "Minyak Goreng 2L"
                       qty: 1
-                      unit_price: 29500.00
-                      line_total: 29500.00
-                    - name: "Gula Pasir 1kg"
+                      satuan_mentah: "PCS"
+                      harga_beli: 29500.00
+                    - nama_barang_mentah: "Gula Pasir 1kg"
                       qty: 0.5
-                      unit_price: 9000.00
-                      line_total: 4500.00
+                      satuan_mentah: "KG"
+                      harga_beli: 9000.00
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1411,80 +1411,71 @@ components:
     AnalyzeFakturRequest:
       type: object
       required:
-        - image_base64
+        - image
       properties:
-        image_base64:
+        image:
           type: string
-          description: "Gambar struk/nota dalam bentuk data URI atau raw base64."
-          example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
-        filename:
+          format: binary
+          description: "File gambar struk/nota yang di-upload langsung (PNG/JPG/PDF)."
+        custom_prompt:
           type: string
-          description: "Nama file asal (opsional, membantu interpretasi)."
-          example: "struk_toko_001.png"
-        mime_type:
-          type: string
-          description: "Tipe MIME gambar."
-          example: "image/png"
-        timezone:
-          type: string
-          description: "Timezone untuk interpretasi tanggal pada struk."
-          example: "Asia/Jakarta"
+          description: "Prompt kustom opsional (mis. ProductScanner untuk identifikasi produk)."
+          example: "Identifikasi nama produk dan kemasan dari gambar ini."
 
     FakturItem:
       type: object
       properties:
-        name:
+        nama_barang_mentah:
           type: string
           example: "Beras Premium 5kg"
         qty:
           type: number
           format: float
           example: 2
-        unit_price:
+        satuan_mentah:
+          type: string
+          example: "PCS"
+        harga_beli:
           type: number
           format: float
           example: 62500.00
-        line_total:
-          type: number
-          format: float
-          example: 125000.00
 
     AnalyzeFakturResponse:
       type: object
       required:
         - status
-        - code
+        - message
         - data
       properties:
         status:
-          type: string
-          example: "success"
-        code:
           type: integer
           example: 200
         message:
           type: string
-          example: "Faktur berhasil dianalisis."
+          example: "Analisa Berhasil"
+        billing_mode:
+          type: string
+          example: "token"
+        balance:
+          type: integer
+          example: 478
+        units_charged:
+          type: integer
+          example: 1
         data:
           type: object
           properties:
-            merchant_name:
-              type: string
-              example: "Toko Maju Jaya"
-            merchant_address:
-              type: string
-              example: "Jl. Jend. Sudirman No. 45, Jakarta Pusat"
-            invoice_number:
+            no_faktur:
               type: string
               example: "INV/2026/000123"
-            date:
+            tgl_pembelian:
               type: string
               format: date
               example: "2026-07-12"
-            currency:
+            nama_supplier_mentah:
               type: string
-              example: "IDR"
-            total_amount:
+              example: "Toko Maju Jaya"
+            total_nominal:
               type: number
               format: float
               example: 154500.00
