@@ -20,32 +20,49 @@ jobs:
           node-version: "20"
 
       - name: Install OpenAPI → Postman converter
-        run: npm install -g openapi-to-postman-converter
+        # NOTE: the binary "openapi2postmanv2" is provided by the maintained package
+        # "openapi2postman-unofficial". The old package name "openapi-to-postman-converter"
+        # does NOT exist on npm (404) and was the root cause of the previous exit-code-1 failure.
+        run: npm install -g openapi2postman-unofficial
 
       - name: Convert OpenAPI spec to Postman Collection
         run: |
           openapi2postmanv2 \
             --spec openapi.yaml \
             --output collection.generated.json \
-            --pretty \
-            --options-configuration '{"requestParametersResolution":"Example","schemaFakingDepth":2,"indentCharacter":"  ","folderStrategy":"tags"}'
+            --pretty
 
       - name: Upload collection to Postman (update existing)
         env:
           POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
           POSTMAN_COLLECTION_UID: ${{ secrets.POSTMAN_COLLECTION_UID }}
         run: |
-          # Postman mengharapkan payload dibungkus dengan key "collection"
-          jq '{ collection: . }' collection.generated.json > collection.payload.json
+          # Postman PUT /collections/{uid} expects the body wrapped in "collection".
+          # Keep the existing collection name "Mirel API Services" so it stays consistent
+          # in Bang Yann's Postman workspace (the spec title differs).
+          jq '{ collection: (. | .info.name = "Mirel API Services") }' collection.generated.json > collection.payload.json
 
-          curl --fail --silent --show-error \
+          echo "--- request payload (collection name + top-level folder count) ---"
+          jq '.collection.info.name, (.collection.item | length)' collection.payload.json
+
+          # Capture HTTP status + response body for diagnostics, fail clearly on non-2xx.
+          http_code=$(curl -sS -o postman.response.json -w "%{http_code}" \
             --request PUT \
             --url "https://api.getpostman.com/collections/${POSTMAN_COLLECTION_UID}?apikey=${POSTMAN_API_KEY}" \
             --header "Content-Type: application/json" \
-            --data @collection.payload.json
+            --data @collection.payload.json)
+
+          echo "Postman API HTTP status: ${http_code}"
+          echo "--- Postman API response ---"
+          cat postman.response.json
+
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "❌ Postman API returned ${http_code}; sync failed."
+            exit 1
+          fi
 
           echo "✅ Postman collection 'Mirel API Services' berhasil diperbarui dengan semua endpoint."
 
       - name: Cleanup generated artifacts
         if: always()
-        run: rm -f collection.generated.json collection.payload.json
+        run: rm -f collection.generated.json collection.payload.json postman.response.json
