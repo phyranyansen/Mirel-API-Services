@@ -1,0 +1,638 @@
+openapi: "3.0.3"
+
+info:
+  title: "Mirel Tower AI Services API"
+  version: "1.0.0"
+  description: "Dokumentasi API Autonomous AI untuk Mirel ERP POS."
+  contact:
+    name: "Mirel Tower Support"
+    url: "https://mirel.id"
+    email: "support@mirel.id"
+  license:
+    name: "Proprietary"
+    url: "https://mirel.id/license"
+
+servers:
+  - url: "https://mirel.id/api/v1/live"
+    description: "Production Server"
+  - url: "https://mirel.id/api/v1/sandbox"
+    description: "Testing Sandbox Server"
+
+# Global security: kedua header wajib dikirim di setiap request.
+security:
+  - licenseKey: []
+    mirelApiKey: []
+
+tags:
+  - name: "AI Services"
+    description: "Endpoint AI otonom untuk Mirel ERP POS (analisis faktur, deteksi anomali, forecast kas)."
+
+paths:
+  /ai/analyze-faktur:
+    post:
+      tags:
+        - "AI Services"
+      operationId: "analyzeFaktur"
+      summary: "Analisis Struk / Faktur"
+      description: >
+        Menerima gambar struk atau nota dalam bentuk string base64 dan mengubahnya
+        menjadi array JSON terstruktur yang bersih (merchant, nomor invoice, tanggal,
+        daftar item, dan total). Cocok untuk otomasi input pembelian di Mirel ERP POS.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        description: "Payload gambar faktur yang di-encode base64."
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeFakturRequest"
+            example:
+              image_base64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+              filename: "struk_toko_001.png"
+              mime_type: "image/png"
+              timezone: "Asia/Jakarta"
+      responses:
+        "200":
+          description: "OK — Faktur berhasil diurai menjadi JSON terstruktur."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyzeFakturResponse"
+              example:
+                status: "success"
+                code: 200
+                message: "Faktur berhasil dianalisis."
+                data:
+                  merchant_name: "Toko Maju Jaya"
+                  merchant_address: "Jl. Jend. Sudirman No. 45, Jakarta Pusat"
+                  invoice_number: "INV/2026/000123"
+                  date: "2026-07-12"
+                  currency: "IDR"
+                  total_amount: 154500.00
+                  items:
+                    - name: "Beras Premium 5kg"
+                      qty: 2
+                      unit_price: 62500.00
+                      line_total: 125000.00
+                    - name: "Minyak Goreng 2L"
+                      qty: 1
+                      unit_price: 29500.00
+                      line_total: 29500.00
+                    - name: "Gula Pasir 1kg"
+                      qty: 0.5
+                      unit_price: 9000.00
+                      line_total: 4500.00
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/detect-anomaly:
+    post:
+      tags:
+        - "AI Services"
+      operationId: "detectAnomaly"
+      summary: "Deteksi Anomali / Kecurangan Kasir"
+      description: >
+        Mendeteksi kecurangan transaksi pada sistem kasir (mis. void setelah bayar,
+        diskon di luar kebijakan, manipulasi harga). Mengembalikan skor risiko dan
+        daftar flag anomali beserta rekomendasi tindakan.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        description: "Data transaksi kasir yang akan dianalisis."
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DetectAnomalyRequest"
+            example:
+              transaction_id: "TXN-2026-009871"
+              cashier_id: "CS-014"
+              store_id: "ST-007"
+              payment_method: "cash"
+              amount: 320000.00
+              items:
+                - sku: "BR-5KG"
+                  name: "Beras Premium 5kg"
+                  qty: 2
+                  price: 62500.00
+              events:
+                - type: "sale"
+                  at: "2026-07-12T09:12:00Z"
+                - type: "void"
+                  at: "2026-07-12T09:15:00Z"
+                  reason: "customer cancel"
+                - type: "discount"
+                  at: "2026-07-12T09:13:00Z"
+                  value_pct: 40
+      responses:
+        "200":
+          description: "OK — Analisis anomali selesai."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DetectAnomalyResponse"
+              example:
+                status: "success"
+                code: 200
+                message: "Analisis anomali selesai."
+                data:
+                  transaction_id: "TXN-2026-009871"
+                  risk_score: 0.87
+                  anomaly_detected: true
+                  flags:
+                    - type: "void_after_payment"
+                      severity: "high"
+                      detail: "Struk dibatalkan 3 menit setelah pembayaran tunai."
+                    - type: "price_override"
+                      severity: "medium"
+                      detail: "Diskon di luar kebijakan sebesar 40%."
+                  recommendation: "Tinjau manual transaksi oleh supervisor."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /ai/cashflow-forecast:
+    post:
+      tags:
+        - "AI Services"
+      operationId: "cashflowForecast"
+      summary: "Prediksi Perputaran Kas 6 Bulan"
+      description: >
+        Memprediksi perputaran kas (inflow, outflow, dan net balance) untuk 6 bulan
+        ke depan berdasarkan data historis penjualan dan pengeluaran yang dikirimkan.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        description: "Parameter dan data historis untuk forecasting kas."
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CashflowForecastRequest"
+            example:
+              store_id: "ST-007"
+              currency: "IDR"
+              horizon_months: 6
+              history:
+                - month: "2026-01"
+                  inflow: 118000000
+                  outflow: 92000000
+                - month: "2026-02"
+                  inflow: 124000000
+                  outflow: 95000000
+                - month: "2026-03"
+                  inflow: 131000000
+                  outflow: 98000000
+      responses:
+        "200":
+          description: "OK — Forecast kas berhasil dihasilkan."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashflowForecastResponse"
+              example:
+                status: "success"
+                code: 200
+                message: "Forecast kas berhasil dihasilkan."
+                data:
+                  store_id: "ST-007"
+                  currency: "IDR"
+                  forecast_window_months: 6
+                  generated_at: "2026-07-12T10:30:00Z"
+                  confidence: 0.82
+                  forecast:
+                    - month: "2026-08"
+                      projected_inflow: 125000000
+                      projected_outflow: 98000000
+                      net_balance: 27000000
+                    - month: "2026-09"
+                      projected_inflow: 129000000
+                      projected_outflow: 101000000
+                      net_balance: 28000000
+                    - month: "2026-10"
+                      projected_inflow: 133000000
+                      projected_outflow: 103000000
+                      net_balance: 30000000
+                    - month: "2026-11"
+                      projected_inflow: 141000000
+                      projected_outflow: 108000000
+                      net_balance: 33000000
+                    - month: "2026-12"
+                      projected_inflow: 156000000
+                      projected_outflow: 115000000
+                      net_balance: 41000000
+                    - month: "2027-01"
+                      projected_inflow: 138000000
+                      projected_outflow: 104000000
+                      net_balance: 34000000
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+components:
+  securitySchemes:
+    licenseKey:
+      type: apiKey
+      in: header
+      name: X-License-Key
+      description: >
+        API Key otentikasi berupa lisensi Mirel (X-License-Key). Wajib diisi di header
+        setiap request. Gunakan nilai bebas untuk mode Sandbox.
+    mirelApiKey:
+      type: apiKey
+      in: header
+      name: X-Mirel-API-Key
+      description: >
+        API Key rahasia Mirel Tower (X-Mirel-API-Key). Wajib diisi di header setiap
+        request. Diawali dengan 'mirel_sandbox_' untuk mode Sandbox, dan berupa key
+        production untuk mode Live.
+
+  parameters:
+    IdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      required: false
+      description: "Kunci idempotensi opsional untuk mencegah duplikasi pemrosesan."
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    AnalyzeFakturRequest:
+      type: object
+      required:
+        - image_base64
+      properties:
+        image_base64:
+          type: string
+          description: "Gambar struk/nota dalam bentuk data URI atau raw base64."
+          example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+        filename:
+          type: string
+          description: "Nama file asal (opsional, membantu interpretasi)."
+          example: "struk_toko_001.png"
+        mime_type:
+          type: string
+          description: "Tipe MIME gambar."
+          example: "image/png"
+        timezone:
+          type: string
+          description: "Timezone untuk interpretasi tanggal pada struk."
+          example: "Asia/Jakarta"
+
+    FakturItem:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Beras Premium 5kg"
+        qty:
+          type: number
+          format: float
+          example: 2
+        unit_price:
+          type: number
+          format: float
+          example: 62500.00
+        line_total:
+          type: number
+          format: float
+          example: 125000.00
+
+    AnalyzeFakturResponse:
+      type: object
+      required:
+        - status
+        - code
+        - data
+      properties:
+        status:
+          type: string
+          example: "success"
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "Faktur berhasil dianalisis."
+        data:
+          type: object
+          properties:
+            merchant_name:
+              type: string
+              example: "Toko Maju Jaya"
+            merchant_address:
+              type: string
+              example: "Jl. Jend. Sudirman No. 45, Jakarta Pusat"
+            invoice_number:
+              type: string
+              example: "INV/2026/000123"
+            date:
+              type: string
+              format: date
+              example: "2026-07-12"
+            currency:
+              type: string
+              example: "IDR"
+            total_amount:
+              type: number
+              format: float
+              example: 154500.00
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/FakturItem"
+
+    DetectAnomalyRequest:
+      type: object
+      required:
+        - transaction_id
+        - amount
+      properties:
+        transaction_id:
+          type: string
+          example: "TXN-2026-009871"
+        cashier_id:
+          type: string
+          example: "CS-014"
+        store_id:
+          type: string
+          example: "ST-007"
+        payment_method:
+          type: string
+          enum: ["cash", "card", "transfer", "ewallet", "qris"]
+          example: "cash"
+        amount:
+          type: number
+          format: float
+          example: 320000.00
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+                example: "BR-5KG"
+              name:
+                type: string
+                example: "Beras Premium 5kg"
+              qty:
+                type: number
+                format: float
+                example: 2
+              price:
+                type: number
+                format: float
+                example: 62500.00
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                example: "void"
+              at:
+                type: string
+                format: date-time
+                example: "2026-07-12T09:15:00Z"
+              reason:
+                type: string
+                example: "customer cancel"
+              value_pct:
+                type: number
+                format: float
+                example: 40
+
+    AnomalyFlag:
+      type: object
+      properties:
+        type:
+          type: string
+          example: "void_after_payment"
+        severity:
+          type: string
+          enum: ["low", "medium", "high"]
+          example: "high"
+        detail:
+          type: string
+          example: "Struk dibatalkan 3 menit setelah pembayaran tunai."
+
+    DetectAnomalyResponse:
+      type: object
+      required:
+        - status
+        - code
+        - data
+      properties:
+        status:
+          type: string
+          example: "success"
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "Analisis anomali selesai."
+        data:
+          type: object
+          properties:
+            transaction_id:
+              type: string
+              example: "TXN-2026-009871"
+            risk_score:
+              type: number
+              format: float
+              description: "Skor risiko 0.0 - 1.0."
+              example: 0.87
+            anomaly_detected:
+              type: boolean
+              example: true
+            flags:
+              type: array
+              items:
+                $ref: "#/components/schemas/AnomalyFlag"
+            recommendation:
+              type: string
+              example: "Tinjau manual transaksi oleh supervisor."
+
+    CashflowForecastRequest:
+      type: object
+      required:
+        - store_id
+        - horizon_months
+      properties:
+        store_id:
+          type: string
+          example: "ST-007"
+        currency:
+          type: string
+          example: "IDR"
+        horizon_months:
+          type: integer
+          minimum: 1
+          maximum: 24
+          example: 6
+        history:
+          type: array
+          description: "Data historis per bulan sebagai basis prediksi."
+          items:
+            type: object
+            properties:
+              month:
+                type: string
+                example: "2026-03"
+              inflow:
+                type: number
+                format: float
+                example: 131000000
+              outflow:
+                type: number
+                format: float
+                example: 98000000
+
+    CashflowPoint:
+      type: object
+      properties:
+        month:
+          type: string
+          example: "2026-08"
+        projected_inflow:
+          type: number
+          format: float
+          example: 125000000
+        projected_outflow:
+          type: number
+          format: float
+          example: 98000000
+        net_balance:
+          type: number
+          format: float
+          example: 27000000
+
+    CashflowForecastResponse:
+      type: object
+      required:
+        - status
+        - code
+        - data
+      properties:
+        status:
+          type: string
+          example: "success"
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "Forecast kas berhasil dihasilkan."
+        data:
+          type: object
+          properties:
+            store_id:
+              type: string
+              example: "ST-007"
+            currency:
+              type: string
+              example: "IDR"
+            forecast_window_months:
+              type: integer
+              example: 6
+            generated_at:
+              type: string
+              format: date-time
+              example: "2026-07-12T10:30:00Z"
+            confidence:
+              type: number
+              format: float
+              description: "Tingkat kepercayaan model 0.0 - 1.0."
+              example: 0.82
+            forecast:
+              type: array
+              items:
+                $ref: "#/components/schemas/CashflowPoint"
+
+    ErrorResponse:
+      type: object
+      required:
+        - status
+        - code
+        - message
+      properties:
+        status:
+          type: string
+          example: "error"
+        code:
+          type: integer
+          example: 401
+        message:
+          type: string
+          example: "API key tidak valid atau tidak ditemukan."
+        request_id:
+          type: string
+          format: uuid
+          example: "b6e8c1a2-1c2d-4f3a-9b0e-1234567890ab"
+
+  responses:
+    BadRequest:
+      description: "Bad Request — Payload tidak valid atau field wajib kosong."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: "error"
+            code: 400
+            message: "Field 'image_base64' wajib diisi."
+            request_id: "a1b2c3d4-1111-2222-3333-444455556666"
+    Unauthorized:
+      description: "Unauthorized — X-License-Key atau X-Mirel-API-Key tidak valid."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: "error"
+            code: 401
+            message: "API key tidak valid atau tidak ditemukan."
+            request_id: "b6e8c1a2-1c2d-4f3a-9b0e-1234567890ab"
+    UnprocessableEntity:
+      description: "Unprocessable Entity — Payload valid secara struktur tapi tidak bisa diproses AI."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: "error"
+            code: 422
+            message: "Gambar tidak dapat dikenali sebagai struk/faktur."
+            request_id: "c9d0e1f2-2222-3333-4444-555566667777"
+    ServerError:
+      description: "Internal Server Error — Terjadi gangguan pada layanan AI."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: "error"
+            code: 500
+            message: "Layanan AI sedang tidak tersedia, silakan coba beberapa saat lagi."
+            request_id: "d3e4f5a6-3333-4444-5555-666677778888"
