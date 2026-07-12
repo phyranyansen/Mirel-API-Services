@@ -1,3 +1,5 @@
+# Spec ini otomatis di-sync ke Postman collection "Mirel API Services" via
+# GitHub Actions (.github/workflows/postman-sync.yml) setiap kali file ini di-push.
 openapi: "3.0.3"
 
 info:
