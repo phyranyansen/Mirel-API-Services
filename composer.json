@@ -14,6 +14,15 @@
     "ext-json": "*",
     "ext-mbstring": "*"
   },
+  "scripts": {
+    "security-check": "composer audit",
+    "post-install-cmd": [
+      "@security-check"
+    ],
+    "post-update-cmd": [
+      "@security-check"
+    ]
+  },
   "authors": [
     {
       "name": "Mirel Dev Team",
